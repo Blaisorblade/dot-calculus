@@ -1,16 +1,14 @@
 Set Implicit Arguments.
 
-Require Import LibLN.
-Require Import Definitions.
-Require Import OperationalSemantics.
-
-Require Export Arith.EqNat.
-Require Export Arith.Le.
-Require Import Coq.Program.Equality.
-Require Import Omega.
+Require Import Arith.Wf_nat.
 Require Import Coq.Program.Wf.
 Require Import Coq.Relations.Relation_Operators.
 Require Import Coq.Wellfounded.Lexicographic_Product.
+
+Require Import LibLN.
+Require Import Definitions.
+Require Import Binding.
+Require Import OperationalSemantics.
 
 Definition nvset := nat -> val -> Prop.
 
