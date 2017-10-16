@@ -13,6 +13,8 @@ Require Import OperationalSemantics.
 Definition nvset := nat -> val -> Prop.
 
 Definition termRel := lexprod nat (fun _ => nat) lt (fun _ => lt).
+Hint Unfold termRel.
+
 Lemma wf_termRel : well_founded termRel.
 Proof.
  apply wf_lexprod; try intro; apply lt_wf.
@@ -49,48 +51,81 @@ Inductive red_n : nat -> sto -> trm -> val -> Prop :=
 | Red0 : forall e v, red_n 0 e (trm_val v) v
 | RedS : forall n e t1 t2 v, red e t1 t2 -> red_n n e t2 v -> red_n (S n) e t1 v.
 
-Definition nvsetFam := typ -> nvset.
-
-Definition pre_exp_type (val_type: nvsetFam)  (T:typ) (n:nat) (t : trm) := False.
+Definition val_type_measure T k := (existT (fun _ => nat) (tsize_flat_typ T) k).
+Hint Unfold val_type_measure.
 
 (* Since the semantics *does* use a store (ahem, environment) this *should* be
  * parameterized by an environment as well. *)
 
 (* Beware: We just ignore type annotations in values, as usual in SILRs. *)
-
-Program Fixpoint val_type (env: sto) (T:typ) (k:nat) (v:val)
-        {measure (existT (fun _ => nat) (tsize_flat_typ T) k) (termRel)}: Prop :=
-  lc_sto env /\
-  (* let *)
-  (*   exp_type (T : typ) (k : nat) (t: trm) := *)
-  (*   forall v j, j < k -> *)
-  (*          red_n j empty t v -> *)
-  (*          val_type T (k - j) v *)
-  (* in *)
+(* Also: should probably use cofinite quantification, but not really sure why it's better than explicit free variable sets. *)
+Program Fixpoint val_type (env: sto) (T: typ) (n: nat) (v: val)
+        {measure (val_type_measure T n) (termRel)}: Prop :=
+  (* Preliminary local closure hypotheses: *)
+  lc_sto env /\ lc_at_typ (length env) T /\
+  (* Really? *)
+  lc_val v /\
+  (* More likely. *)
+  (* lc_at_val (length env) v /\ *)
+  let
+    exp_type (env1 : sto) (T1 : typ) (k : nat) (t: trm) (H : termRel (val_type_measure T1 k) (val_type_measure T n)) :=
+    forall v j,
+      j < k ->
+      red_n j env1 t v ->
+      val_type env1 T1 (k - j) v
+  in
   match v, T with
      | val_lambda T0 t, typ_all T1 T2 =>
-       let
-         exp_type_t2 x (env : sto) (k : nat) (t: trm) :=
-         forall v j, j < k ->
-                red_n j env t v ->
-                val_type env (open_typ x T2) (k - j) v
-       in
        lc_at_typ (length env) T1 /\ lc_at_typ (S (length env)) T2 /\
-       forall j va x,
-         j < k ->
-         val_type env T1 j va ->
+       forall k va x,
          x \notin fv_trm t ->
-         exp_type_t2 x (env & ((x ~ v))) j t
+         k < n -> val_type env T1 k va ->
+         exp_type (env & x ~ v) (open_typ x T2) k t _
      | _, typ_and T1 T2 =>
-       val_type env T1 k v /\ val_type env T2 k v
+       val_type env T1 n v /\ val_type env T2 n v
+     | _, typ_top =>
+       True
+     | _, typ_bot =>
+       False
+     | val_new T0 defs, typ_rcd (dec_typ l TL TU) =>
+       exists T1,
+       get_def (label_typ l) defs = Some (def_typ l T1) /\
+       True
+         (* Check the bounds are respected. This requires fixing the termination
+         * order used here! The one on paper seems fine, but this one seems
+         different by mistake. *)
+       (* forall v', *)
+       (*   (val_type env TL (n - 1) v' -> val_type env T1 (n - 1) v') /\ *)
+       (*   (val_type env T1 (n - 1) v' -> val_type env TU (n - 1) v') *)
+     | val_new T0 defs, typ_rcd (dec_trm l T1) =>
+       exists t,
+       get_def (label_trm l) defs = Some (def_trm l t) /\
+       forall x, x \notin fv_trm t ->
+       exp_type (env & x ~ v) (open_typ x T1) (n - 1) t _
+     | _, typ_sel (avar_f x )L =>
+       exists v, binds x v env /\
+       False
+     (* | typ_sel  : avar -> typ_label -> typ *)
+     (* | typ_bnd  : typ -> typ *)
      | _,_ =>
        False
   end.
 
 Ltac smaller_calls :=
   Tactics.program_simpl;
-  unfold termRel; apply left_lex;
-  try unfold open_typ; try rewrite open_preserves_size_typ; simpl; try omega.
-Ltac discriminatePlus := split; intros; let Habs := fresh "Habs" in intro Habs; destruct Habs; discriminate.
+  autounfold; apply left_lex;
+  unfold open_typ; try rewrite open_preserves_size_typ; simpl; omega.
+Ltac discriminatePlus := repeat split; intros; let Habs := fresh "Habs" in intro Habs; destruct Habs; discriminate.
+
+Next Obligation.
+  (* Show that recursive calls in exp_type are well-founded. *)
+  autounfold with *.
+  inverts H.
+  - apply left_lex. assumption.
+  - apply right_lex. omega.
+Qed.
+
+(* Show that other recursive calls are well-founded. *)
 Solve Obligations with smaller_calls.
+(* Show that different branches are disjoint. *)
 Solve Obligations with discriminatePlus.
