@@ -1,4 +1,4 @@
-FILES=Safety.v
+FILES=Safety.v silr.v silrLemmas.v
 OBJECTS=$(FILES:.v=.vo)
 
 TLCDIR=../lib/tlc
