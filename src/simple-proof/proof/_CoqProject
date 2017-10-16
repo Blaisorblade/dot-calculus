@@ -1,1 +1,1 @@
--R ../lib/tlc/ TLC -R . ""
+-R ../lib/tlc/src TLC -R . ""
