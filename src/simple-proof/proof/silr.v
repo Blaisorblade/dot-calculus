@@ -19,7 +19,7 @@ Hint Unfold termRel.
 Lemma wf_termRel : well_founded termRel.
 Proof.
  apply wf_lexprod; try intro; apply lt_wf.
-Qed.
+Defined.
 
 Hint Resolve wf_termRel.
 
