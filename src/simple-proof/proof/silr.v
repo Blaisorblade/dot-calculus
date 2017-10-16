@@ -2,6 +2,7 @@ Set Implicit Arguments.
 
 Require Import Arith.Wf_nat.
 Require Import Coq.Program.Wf.
+Import WfExtensionality.
 Require Import Coq.Relations.Relation_Operators.
 Require Import Coq.Wellfounded.Lexicographic_Product.
 
@@ -129,3 +130,110 @@ Qed.
 Solve Obligations with smaller_calls.
 (* Show that different branches are disjoint. *)
 Solve Obligations with discriminatePlus.
+
+Ltac ev := repeat match goal with
+                  | H: exists _, _ |- _ => destruct H
+                  | H: _ /\  _ |- _ => destruct H
+                  end.
+
+Lemma val_type_unfold: forall (env: sto) (T: typ) (n: nat) (v: val),
+                         val_type env T n v =
+  (* Copy-pasted. *)
+  (* Preliminary local closure hypotheses: *)
+  (lc_sto env /\ lc_at_typ (length env) T /\
+  (* Really? *)
+  lc_val v /\
+  (* More likely. *)
+  (* lc_at_val (length env) v /\ *)
+  let
+    exp_type (env1 : sto) (T1 : typ) (k : nat) (t: trm) (H : termRel (val_type_measure T1 k) (val_type_measure T n)) :=
+    forall v j,
+      j < k ->
+      red_n j env1 t v ->
+      val_type env1 T1 (k - j) v
+  in
+  match v, T with
+     | val_lambda T0 t, typ_all T1 T2 =>
+       lc_at_typ (length env) T1 /\ lc_at_typ (S (length env)) T2 /\
+       forall k va x,
+         x \notin fv_trm t ->
+         k < n -> val_type env T1 k va ->
+         exists H,
+         exp_type (env & x ~ v) (open_typ x T2) k t H
+     | _, typ_and T1 T2 =>
+       val_type env T1 n v /\ val_type env T2 n v
+     | _, typ_top =>
+       True
+     | _, typ_bot =>
+       False
+     | val_new T0 defs, typ_rcd (dec_typ l TL TU) =>
+       exists T1,
+       get_def (label_typ l) defs = Some (def_typ l T1) /\
+       True
+         (* Check the bounds are respected. This requires fixing the termination
+         * order used here! The one on paper seems fine, but this one seems
+         different by mistake. *)
+       (* forall v', *)
+       (*   (val_type env TL (n - 1) v' -> val_type env T1 (n - 1) v') /\ *)
+       (*   (val_type env T1 (n - 1) v' -> val_type env TU (n - 1) v') *)
+     | val_new T0 defs, typ_rcd (dec_trm l T1) =>
+       exists t,
+       get_def (label_trm l) defs = Some (def_trm l t) /\
+       forall x, x \notin fv_trm t ->
+            exists H,
+       exp_type (env & x ~ v) (open_typ x T1) (n - 1) t H
+     | _, typ_sel (avar_f x )L =>
+       exists v, binds x v env /\
+       False
+     (* | typ_sel  : avar -> typ_label -> typ *)
+     (* | typ_bnd  : typ -> typ *)
+     | _,_ =>
+       False
+  end).
+Proof.
+  intros.
+  unfold val_type at 1.
+  unfold val_type_func.
+  unfold_sub val_type (val_type env T n v). simpl.
+  fequals. fequals. fequals.
+  Require Import Program.
+  dependent induction T;
+  dependent destruction v; simpl; try reflexivity.
+  - destruct d; eauto.
+    apply prop_ext; split; intro H; destruct H as [t2 H']; eexists t2.
+    + ev. split; [ assumption | intros * Hxfresh ].
+      eexists.
+      * smaller_calls.
+      * introv Hle Hred.
+        apply (H0 x Hxfresh v j Hle Hred).
+    + ev. split; [ assumption | intros * Hxfresh * Hle Hred ].
+      lets Hx: (H0 x Hxfresh).
+      clear H0.
+      destruct Hx as [Hlex H1].
+      apply (H1 v j Hle Hred).
+  - destruct a; auto.
+  - destruct a; auto.
+  - fequals. fequals.
+    apply prop_ext; split; intro H; intros * Hxfresh * Hle Hva.
+    (* Use extensionality the Agda way and keep proving equality, like Yann does. *)
+    + eexists.
+      * smaller_calls.
+      * clear IHT1. clear IHT2.
+        intros * Hle1 Hred.
+        eapply H with (va := va); auto.
+    + (* XXX No clue what's going on! *)
+      skip'.
+      (* intros * Hle1. *)
+      (* intro Hred. *)
+      (* simpl. *)
+      (* (* Half of unfold_sub *) *)
+      (* rewrite fix_sub_eq_ext. repeat fold_sub val_type. simpl proj1_sig. *)
+      (* rewrite fix_sub_eq_ext in Hva. repeat fold_sub val_type in Hva. *)
+      (* apply IHT2. *)
+
+      (* repeat split; try constructor. *)
+      (* all: auto. *)
+      (* * skip. *)
+      (* * constructor. *)
+      (*   inversion Hred. subst. *)
+Admitted.
