@@ -197,8 +197,8 @@ Proof.
   unfold_sub val_type (val_type env T n v). simpl.
   fequals. fequals. fequals.
   Require Import Program.
-  dependent induction T;
-  dependent destruction v; simpl; try reflexivity.
+  destruct T;
+  destruct v; simpl; try reflexivity.
   - destruct d; eauto.
     apply prop_ext; split; intro H; destruct H as [t2 H']; eexists t2.
     + ev. split; [ assumption | intros * Hxfresh ].
@@ -230,23 +230,23 @@ Proof.
       clear Hva.
       (* Half of unfold_sub *)
       rewrite fix_sub_eq_ext. repeat fold_sub val_type. simpl proj1_sig.
-      (* repeat fold_sub val_type in Hva. *)
-      (* apply IHT2. *)
 
       simpl in *.
       destruct Hts as [Hterm Hres].
       assert (Hv:
-         val_type (env & x ~ val_lambda t t0) (open_typ x T2) (k - j) v).
-      * auto.
-      *
-        (* apply IHT2 in Hv. *)
-        unfold val_type at 1 in Hv.
-        unfold val_type_func in Hv.
-        rewrite fix_sub_eq_ext in Hv.
-        (* unfold_sub val_type (val_type env T n v).
-           simpl. *)
-        inverts Hv. simpl in *.
-        clear Hres.
-        ev.
-        repeat split; auto.
+         val_type (env & x ~ val_lambda t t0) (open_typ x T2) (k - j) v) by (apply Hres; auto).
+      clear Hres.
+
+      (* Needed to invert Hv; taken from the start of this proof. *)
+      unfold val_type at 1 in Hv;
+      unfold val_type_func in Hv;
+      (* From unfold_sub *)
+      rewrite fix_sub_eq_ext in Hv.
+
+      simpl in *.
+      inverts Hv.
+      ev.
+      repeat split; auto.
 Qed.
+
+(* ev is very badly named.*)
