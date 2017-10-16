@@ -218,22 +218,35 @@ Proof.
     (* Use extensionality the Agda way and keep proving equality, like Yann does. *)
     + eexists.
       * smaller_calls.
-      * clear IHT1. clear IHT2.
+      *
         intros * Hle1 Hred.
         eapply H with (va := va); auto.
-    + (* XXX No clue what's going on! *)
-      skip'.
-      (* intros * Hle1. *)
-      (* intro Hred. *)
-      (* simpl. *)
-      (* (* Half of unfold_sub *) *)
-      (* rewrite fix_sub_eq_ext. repeat fold_sub val_type. simpl proj1_sig. *)
-      (* rewrite fix_sub_eq_ext in Hva. repeat fold_sub val_type in Hva. *)
+    + (* Here, we must use Hva
+       *)
+      intros * Hle1.
+      intro Hred.
+      simpl.
+      lets Hts : (H k va x Hxfresh Hle Hva).
+      clear Hva.
+      (* Half of unfold_sub *)
+      rewrite fix_sub_eq_ext. repeat fold_sub val_type. simpl proj1_sig.
+      (* repeat fold_sub val_type in Hva. *)
       (* apply IHT2. *)
 
-      (* repeat split; try constructor. *)
-      (* all: auto. *)
-      (* * skip. *)
-      (* * constructor. *)
-      (*   inversion Hred. subst. *)
-Admitted.
+      simpl in *.
+      destruct Hts as [Hterm Hres].
+      assert (Hv:
+         val_type (env & x ~ val_lambda t t0) (open_typ x T2) (k - j) v).
+      * auto.
+      *
+        (* apply IHT2 in Hv. *)
+        unfold val_type at 1 in Hv.
+        unfold val_type_func in Hv.
+        rewrite fix_sub_eq_ext in Hv.
+        (* unfold_sub val_type (val_type env T n v).
+           simpl. *)
+        inverts Hv. simpl in *.
+        clear Hres.
+        ev.
+        repeat split; auto.
+Qed.
